@@ -1,0 +1,142 @@
+### ==========================================================
+### GREENLY BACKEND - PRZYKŁADOWE ZAPYTANIA HTTP (REST CLIENT)
+### ==========================================================
+
+@baseUrl = http://localhost:3000/api
+@authToken = {{login.response.body.token}}
+
+### 1. Diagnostyka (Healthcheck)
+GET {{baseUrl}}/health
+
+### 2. Rejestracja nowego użytkownika
+# @name register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "ogrodnik@greenly.pl",
+  "password": "bezpieczneHaslo123!"
+}
+
+### 3. Logowanie (zapisuje token do zmiennej @authToken)
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "ogrodnik@greenly.pl",
+  "password": "bezpieczneHaslo123!"
+}
+
+### 4. Pobranie danych zalogowanego użytkownika (/me)
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{authToken}}
+
+### 5. Pobranie słownika typów czynności pielęgnacyjnych
+GET {{baseUrl}}/care/task-types
+Authorization: Bearer {{authToken}}
+
+### 6. Utworzenie mikroklimatu typu 'Indoor'
+# @name createIndoorMicroclimate
+POST {{baseUrl}}/microclimates
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "Salon - Strefa Okienna",
+  "environmentType": "Indoor",
+  "weatherSource": null,
+  "location": "Warszawa",
+  "temperature": 21.0,
+  "humidity": 50.0,
+  "lightLevel": "medium"
+}
+
+### 7. Utworzenie mikroklimatu typu 'Outdoor' (do automatyzacji pogodowej)
+# @name createOutdoorMicroclimate
+POST {{baseUrl}}/microclimates
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "Balkon Południowy",
+  "environmentType": "Outdoor",
+  "weatherSource": "open-meteo",
+  "location": "Kraków",
+  "temperature": 24.5,
+  "humidity": 60.0,
+  "lightLevel": "direct_sun"
+}
+
+### 8. Lista mikroklimatów użytkownika
+GET {{baseUrl}}/microclimates
+Authorization: Bearer {{authToken}}
+
+### 9. Dodanie rośliny wewnętrznej
+POST {{baseUrl}}/plants
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "microclimateId": 1,
+  "nickname": "Monstera Dziurawa",
+  "externalSpeciesId": "monstera-deliciosa",
+  "locationDescription": "Przy oknie tarasowym",
+  "frequencyDays": 7,
+  "imageUrl": "https://images.unsplash.com/photo-1614594975525-e45190c55d0b"
+}
+
+### 10. Dodanie rośliny zewnętrznej (podlegającej pod CRON pogodowy)
+POST {{baseUrl}}/plants
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "microclimateId": 2,
+  "nickname": "Papryczki Chili",
+  "externalSpeciesId": "capsicum-annuum",
+  "locationDescription": "Skrzynka balkonowa",
+  "frequencyDays": 2,
+  "imageUrl": "https://images.unsplash.com/photo-1588252303782-cb80119abd6d"
+}
+
+### 11. Pobranie wszystkich roślin użytkownika
+GET {{baseUrl}}/plants
+Authorization: Bearer {{authToken}}
+
+### 12. Pobranie szczegółów pojedynczej rośliny (ID: 1)
+GET {{baseUrl}}/plants/1
+Authorization: Bearer {{authToken}}
+
+### 13. Zalogowanie wykonanej czynności pielęgnacyjnej (np. podlanie rośliny)
+# Aktualizuje care_history oraz przelicza terminy w tabeli schedules
+POST {{baseUrl}}/care/plants/1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "taskTypeKey": "water",
+  "notes": "Podlano 400ml wody z odżywką mineralną"
+}
+
+### 14. Pobranie historii zabiegów pielęgnacyjnych dla rośliny (ID: 1)
+GET {{baseUrl}}/care/plants/1
+Authorization: Bearer {{authToken}}
+
+### 15. Ręczne wywołanie zadania pogodowego CRON (symulacja/odczyt stacji meteo)
+# Przelicza harmonogramy dla roślin Outdoor i loguje powiadomienie PUSH w konsoli
+POST {{baseUrl}}/cron/trigger-weather
+
+### 16. Aktualizacja danych rośliny (edycja)
+PUT {{baseUrl}}/plants/1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "nickname": "Monstera Królewska",
+  "locationDescription": "Przestawiona w lekkie zacienienie"
+}
+
+### 17. Usunięcie / archiwizacja rośliny (soft-delete)
+DELETE {{baseUrl}}/plants/1
+Authorization: Bearer {{authToken}}
