@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  microclimates Microclimate[]
+  plants        Plant[]
+
+  @@map("users")
+}
+
+model Microclimate {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  name            String   @db.VarChar(255)
+  environmentType String   @map("environment_type") @db.VarChar(50)
+  weatherAware    Boolean  @default(false) @map("weather_aware")
+  weatherLocation String?  @map("weather_location") @db.VarChar(255)
+  temperature     Decimal? @db.Decimal(5, 2)
+  humidity        Decimal? @db.Decimal(5, 2)
+  lightLevel      String?  @map("light_level") @db.VarChar(100)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plants Plant[]
+
+  @@index([userId])
+  @@map("microclimates")
+}
+
+model Plant {
+  id                  Int       @id @default(autoincrement())
+  userId              Int       @map("user_id")
+  microclimateId      Int       @map("microclimate_id")
+  externalSpeciesId   String?   @map("external_species_id") @db.VarChar(255)
+  nickname            String    @db.VarChar(255)
+  locationDescription String?   @map("location_description") @db.VarChar(255)
+  addedAt             DateTime  @default(now()) @map("added_at")
+  archivedAt          DateTime? @map("archived_at")
+  notes               String?   @db.Text
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  microclimate Microclimate  @relation(fields: [microclimateId], references: [id], onDelete: Cascade)
+  images       PlantImage[]
+  schedules    Schedule[]
+  careHistory  CareHistory[]
+
+  @@index([userId])
+  @@index([microclimateId])
+  @@map("plants")
+}
+
+model PlantImage {
+  id         Int      @id @default(autoincrement())
+  plantId    Int      @map("plant_id")
+  imageUrl   String   @map("image_url") @db.VarChar(500)
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  plant Plant @relation(fields: [plantId], references: [id], onDelete: Cascade)
+
+  @@index([plantId])
+  @@map("plant_images")
+}
+
+model TaskType {
+  id    Int    @id @default(autoincrement())
+  key   String @unique @db.VarChar(100)
+  label String @db.VarChar(255)
+
+  schedules   Schedule[]
+  careHistory CareHistory[]
+
+  @@map("task_types")
+}
+
+model Schedule {
+  id              Int       @id @default(autoincrement())
+  plantId          Int       @map("plant_id")
+  taskTypeId       Int       @map("task_type_id")
+  frequencyDays    Int       @map("frequency_days")
+  nextDueDate      DateTime  @map("next_due_date")
+  lastCompletedAt  DateTime? @map("last_completed_at")
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  plant    Plant    @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  taskType TaskType @relation(fields: [taskTypeId], references: [id], onDelete: Cascade)
+
+  @@index([plantId])
+  @@index([taskTypeId])
+  @@map("schedules")
+}
+
+model CareHistory {
+  id          Int      @id @default(autoincrement())
+  plantId     Int      @map("plant_id")
+  taskTypeId  Int      @map("task_type_id")
+  completedAt DateTime @default(now()) @map("completed_at")
+  notes       String?  @db.Text
+
+  plant    Plant    @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  taskType TaskType @relation(fields: [taskTypeId], references: [id], onDelete: Cascade)
+
+  @@index([plantId])
+  @@index([taskTypeId])
+  @@map("care_history")
+}

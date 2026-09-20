@@ -1,0 +1,63 @@
+### Health
+GET http://localhost:5000/api/health
+
+### Register
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### Login
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "demo@greenly.local",
+  "password": "password123"
+}
+
+### Me
+GET http://localhost:5000/api/auth/me
+
+### Create microclimate
+POST http://localhost:5000/api/microclimates
+Content-Type: application/json
+
+{
+  "name": "Balcony",
+  "environmentType": "outdoor",
+  "weatherAware": true,
+  "weatherLocation": "Warsaw, Poland",
+  "temperature": 18,
+  "humidity": 60,
+  "lightLevel": "Medium"
+}
+
+### Catalog
+GET http://localhost:5000/api/catalog
+
+### Create plant
+POST http://localhost:5000/api/plants
+Content-Type: application/json
+
+{
+  "microclimateId": 1,
+  "externalSpeciesId": "ficus-lyrata",
+  "nickname": "Ficus in bedroom",
+  "notes": "Gift from mom, needs extra care"
+}
+
+### Dashboard
+GET http://localhost:5000/api/plants/dashboard
+
+### Log care action
+POST http://localhost:5000/api/plants/1/care-actions
+Content-Type: application/json
+
+{
+  "taskTypeKey": "water",
+  "notes": "Soil was very dry"
+}
