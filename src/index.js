@@ -6,13 +6,25 @@ import authRoutes from "./routes/authRoutes.js";
 import microclimateRoutes from "./routes/microclimateRoutes.js";
 import plantRoutes from "./routes/plantRoutes.js";
 import careRoutes from "./routes/careRoutes.js";
-import { initCronJobs, checkOutdoorPlantsAndAdjustSchedules } from "./services/cronService.js";
+import {
+  initCronJobs,
+  checkOutdoorPlantsAndAdjustSchedules,
+} from "./services/cronService.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Konfiguracja CORS
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  }),
+);
+
 // Konfiguracja middleware
-app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -35,9 +47,14 @@ app.use("/api/care", careRoutes);
 app.post("/api/cron/trigger-weather", async (req, res) => {
   try {
     await checkOutdoorPlantsAndAdjustSchedules();
-    res.status(200).json({ message: "Zadanie pogodowe zostało pomyślnie wykonane" });
+    res
+      .status(200)
+      .json({ message: "Zadanie pogodowe zostało pomyślnie wykonane" });
   } catch (err) {
-    res.status(500).json({ message: "Błąd podczas wykonywania zadania pogodowego", error: err.message });
+    res.status(500).json({
+      message: "Błąd podczas wykonywania zadania pogodowego",
+      error: err.message,
+    });
   }
 });
 
