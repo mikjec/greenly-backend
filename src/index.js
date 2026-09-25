@@ -6,6 +6,9 @@ import authRoutes from "./routes/authRoutes.js";
 import microclimateRoutes from "./routes/microclimateRoutes.js";
 import plantRoutes from "./routes/plantRoutes.js";
 import careRoutes from "./routes/careRoutes.js";
+import catalogRoutes from "./routes/catalogRoutes.js";
+import weatherRoutes from "./routes/weatherRoutes.js";
+import { requireAuth } from "./middlewares/authMiddleware.js";
 import {
   initCronJobs,
   checkOutdoorPlantsAndAdjustSchedules,
@@ -42,14 +45,16 @@ app.use("/api/auth", authRoutes);
 app.use("/api/microclimates", microclimateRoutes);
 app.use("/api/plants", plantRoutes);
 app.use("/api/care", careRoutes);
+app.use("/api/catalog", catalogRoutes);
+app.use("/api/weather", weatherRoutes);
 
 // Opcjonalny endpoint do ręcznego wywołania zadania cron (ułatwia testowanie i demonstrację)
-app.post("/api/cron/trigger-weather", async (req, res) => {
+app.post("/api/cron/trigger-weather", requireAuth, async (req, res) => {
   try {
-    await checkOutdoorPlantsAndAdjustSchedules();
+    const result = await checkOutdoorPlantsAndAdjustSchedules(req.user.id);
     res
       .status(200)
-      .json({ message: "Zadanie pogodowe zostało pomyślnie wykonane" });
+      .json({ ...result, message: `Sprawdzono: ${result.checked}. Zmieniono: ${result.updated}. Pominięto z powodu błędu: ${result.skipped}.` });
   } catch (err) {
     res.status(500).json({
       message: "Błąd podczas wykonywania zadania pogodowego",
