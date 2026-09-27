@@ -6,7 +6,10 @@ import {
   updatePlant,
   deletePlant,
 } from "../controllers/plantController.js";
-import { logCareAction, getCareHistory } from "../controllers/careController.js";
+import {
+  logCareAction,
+  getCareHistory,
+} from "../controllers/careController.js";
 import { requireAuth } from "../middlewares/authMiddleware.js";
 
 const router = Router();

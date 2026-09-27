@@ -8,6 +8,8 @@ import plantRoutes from "./routes/plantRoutes.js";
 import careRoutes from "./routes/careRoutes.js";
 import catalogRoutes from "./routes/catalogRoutes.js";
 import weatherRoutes from "./routes/weatherRoutes.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
+import { uploadDirectory } from "./services/imageService.js";
 import { requireAuth } from "./middlewares/authMiddleware.js";
 import {
   initCronJobs,
@@ -30,6 +32,7 @@ app.use(
 // Konfiguracja middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use("/uploads", express.static(uploadDirectory, { dotfiles: "deny", setHeaders: (res) => res.setHeader("X-Content-Type-Options", "nosniff") }));
 
 // Podstawowy endpoint diagnostyczny
 app.get("/api/health", (req, res) => {
@@ -47,6 +50,7 @@ app.use("/api/plants", plantRoutes);
 app.use("/api/care", careRoutes);
 app.use("/api/catalog", catalogRoutes);
 app.use("/api/weather", weatherRoutes);
+app.use("/api/uploads", uploadRoutes);
 
 // Opcjonalny endpoint do ręcznego wywołania zadania cron (ułatwia testowanie i demonstrację)
 app.post("/api/cron/trigger-weather", requireAuth, async (req, res) => {
@@ -54,7 +58,7 @@ app.post("/api/cron/trigger-weather", requireAuth, async (req, res) => {
     const result = await checkOutdoorPlantsAndAdjustSchedules(req.user.id);
     res
       .status(200)
-      .json({ ...result, message: `Sprawdzono: ${result.checked}. Zmieniono: ${result.updated}. Pominięto z powodu błędu: ${result.skipped}.` });
+      .json({ ...result, message: `Sprawdzono: ${result.checked}. Zmieniono: ${result.updated}. Pominięto: ${result.skipped}.` });
   } catch (err) {
     res.status(500).json({
       message: "Błąd podczas wykonywania zadania pogodowego",

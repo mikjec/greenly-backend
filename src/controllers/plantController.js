@@ -68,7 +68,7 @@ export const getPlants = async (req, res) => {
         const images = await db
           .select()
           .from(plantImages)
-          .where(eq(plantImages.plantId, plant.id));
+          .where(eq(plantImages.plantId, plant.id)).orderBy(desc(plantImages.id));
 
         const plantSchedules = await db
           .select({
@@ -134,7 +134,7 @@ export const getPlantById = async (req, res) => {
     const images = await db
       .select()
       .from(plantImages)
-      .where(eq(plantImages.plantId, id));
+      .where(eq(plantImages.plantId, id)).orderBy(desc(plantImages.id));
 
     // Harmonogramy
     const plantSchedules = await db
@@ -199,16 +199,19 @@ export const createPlant = async (req, res) => {
       externalSpeciesId,
       locationDescription,
       imageUrl,
-      frequencyDays = 7,
+      frequencyDays,
     } = req.body;
 
-    if (!microclimateId || !nickname) {
+    if (!microclimateId || typeof nickname !== "string" || !nickname.trim() || nickname.length > 255) {
       return res.status(400).json({
         message: "Pola 'microclimateId' oraz 'nickname' są wymagane",
       });
     }
 
     const microclimateIdNum = Number(microclimateId);
+    if (!Number.isInteger(Number(frequencyDays)) || Number(frequencyDays) < 1 || Number(frequencyDays) > 365) {
+      return res.status(400).json({ message: "Częstotliwość podlewania musi wynosić od 1 do 365 dni." });
+    }
     if (isNaN(microclimateIdNum)) {
       return res.status(400).json({ message: "Nieprawidłowe ID mikroklimatu" });
     }
@@ -251,6 +254,7 @@ export const createPlant = async (req, res) => {
     }
 
     // Utwórz domyślny harmonogram podlewania (task_type = 'water')
+    await db.insert(taskTypes).values({ key: "water", label: "Podlewanie" }).onDuplicateKeyUpdate({ set: { key: "water" } });
     const waterTaskTypes = await db
       .select()
       .from(taskTypes)
@@ -281,7 +285,7 @@ export const createPlant = async (req, res) => {
     const images = await db
       .select()
       .from(plantImages)
-      .where(eq(plantImages.plantId, newPlantId));
+      .where(eq(plantImages.plantId, newPlantId)).orderBy(desc(plantImages.id));
 
     const plantSchedules = await db
       .select()
@@ -352,6 +356,7 @@ export const updatePlant = async (req, res) => {
       updateData.microclimateId = newMicroclimateId;
     }
 
+    if (nickname !== undefined && (typeof nickname !== "string" || !nickname.trim() || nickname.length > 255)) return res.status(400).json({ message: "Podaj nazwę rośliny (do 255 znaków)." });
     if (nickname !== undefined) updateData.nickname = String(nickname).trim();
     if (externalSpeciesId !== undefined) updateData.externalSpeciesId = externalSpeciesId ? String(externalSpeciesId).trim() : null;
     if (locationDescription !== undefined) updateData.locationDescription = locationDescription ? String(locationDescription).trim() : null;
@@ -377,7 +382,7 @@ export const updatePlant = async (req, res) => {
     const images = await db
       .select()
       .from(plantImages)
-      .where(eq(plantImages.plantId, id));
+      .where(eq(plantImages.plantId, id)).orderBy(desc(plantImages.id));
 
     return res.status(200).json({
       message: "Roślina została zaktualizowana",

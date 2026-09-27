@@ -1,6 +1,7 @@
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { microclimates } from "../db/schema.js";
+import { validateMicroclimate } from "../services/microclimateValidation.js";
 
 export const getMicroclimates = async (req, res) => {
   try {
@@ -60,6 +61,8 @@ export const getMicroclimateById = async (req, res) => {
 
 export const createMicroclimate = async (req, res) => {
   try {
+    const validationError = validateMicroclimate(req.body);
+    if (validationError) return res.status(400).json({ message: validationError });
     const {
       name,
       environmentType,
@@ -143,6 +146,8 @@ export const updateMicroclimate = async (req, res) => {
     } = req.body;
 
     const updateData = {};
+    const validationError = validateMicroclimate({ ...existing[0], ...req.body });
+    if (validationError) return res.status(400).json({ message: validationError });
     if (name !== undefined) updateData.name = String(name).trim();
     if (environmentType !== undefined) updateData.environmentType = String(environmentType).trim();
     if (weatherSource !== undefined) updateData.weatherSource = weatherSource ? String(weatherSource).trim() : null;

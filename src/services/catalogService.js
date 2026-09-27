@@ -1,3 +1,4 @@
+import { wateringSuggestion } from "./wateringSuggestion.js";
 import { createRequestCache } from "./requestCache.js";
 const BASE_URL = "https://perenual.com/api/v2/";
 const cached = createRequestCache();
@@ -62,6 +63,7 @@ export function normalizePlant(plant) {
     imageUrl: plant.default_image?.regular_url || plant.default_image?.medium_url || null,
     description: plant.description || "Brak opisu w katalogu.",
     watering: display(plant.watering),
+    wateringSuggestion: wateringSuggestion(plant),
     light: display(plant.sunlight),
     humidity: "Brak danych",
   };
@@ -70,10 +72,15 @@ export function normalizePlant(plant) {
 export async function listCatalog(req, res) {
   const page = String(req.query.page ?? "1");
   const q = req.query.q ?? "";
+  const watering = req.query.watering ?? "";
+  const order = req.query.order ?? "asc";
+  if (!["", "frequent", "average", "minimum", "none"].includes(watering) || !["asc", "desc"].includes(order)) {
+    return res.status(400).json({ message: "Nieprawidłowy filtr podlewania lub kolejność sortowania." });
+  }
   if (!/^[1-9]\d*$/.test(page) || !Number.isSafeInteger(Number(page)) || typeof q !== "string" || q.length > 200) {
     return res.status(400).json({ message: "Nieprawidłowe parametry wyszukiwania." });
   }
-  const result = await getCachedCatalog("species-list", { indoor: "1", page, ...(q.trim() ? { q: q.trim() } : {}) });
+  const result = await getCachedCatalog("species-list", { indoor: "1", page, order, ...(watering ? { watering } : {}), ...(q.trim() ? { q: q.trim() } : {}) });
   if (!Array.isArray(result?.data)) {
     return res.status(502).json({ message: "Perenual nie zwrócił listy roślin. Sprawdź dostępność API i limit zapytań." });
   }
@@ -84,5 +91,5 @@ export async function catalogDetails(req, res) {
   if (!/^[1-9]\d*$/.test(req.params.id)) return res.status(400).json({ message: "Nieprawidłowy identyfikator gatunku." });
   const result = await getCachedCatalog(`species/details/${req.params.id}`);
   if (!result?.id) return res.status(502).json({ message: "Perenual nie zwrócił szczegółów gatunku. Sprawdź dostępność zasobu w swoim planie API." });
-  res.json({ plant: normalizePlant(result) });
+  res.json({ plant: { ...normalizePlant(result), detailsLoaded: true } });
 }

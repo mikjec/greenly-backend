@@ -6,8 +6,17 @@ const router = Router();
 router.use(requireAuth);
 // Return only sanitized errors; upstream request URLs contain the API key.
 const handle = (handler) => async (req, res) => {
-  try { await handler(req, res); }
-  catch (error) { res.status(error.status || 502).json({ message: error.status ? error.message : "Błąd pobierania katalogu roślin." }); }
+  try {
+    await handler(req, res);
+  } catch (error) {
+    res
+      .status(error.status || 502)
+      .json({
+        message: error.status
+          ? error.message
+          : "Błąd pobierania katalogu roślin.",
+      });
+  }
 };
 router.get("/", handle(listCatalog));
 router.get("/:id", handle(catalogDetails));
