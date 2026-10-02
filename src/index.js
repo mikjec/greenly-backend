@@ -20,9 +20,44 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Konfiguracja CORS
+const configuredClients = (process.env.CLIENT_URL || "")
+  .split(",")
+  .map((u) => {
+    let clean = u.trim().replace(/\/+$/, "");
+    if (clean && !/^https?:\/\//i.test(clean)) {
+      clean = `https://${clean}`;
+    }
+    return clean;
+  })
+  .filter(Boolean);
+
+const defaultOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:3000",
+];
+
+const allowedOrigins = new Set([...defaultOrigins, ...configuredClients]);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: (origin, callback) => {
+      // Zezwalaj na żądania bez origin (np. curl, testy, zapytania serwerowe)
+      if (!origin) return callback(null, true);
+
+      const normalizedOrigin = origin.replace(/\/+$/, "");
+      if (
+        allowedOrigins.has(normalizedOrigin) ||
+        normalizedOrigin.endsWith(".railway.app") ||
+        normalizedOrigin.endsWith(".up.railway.app")
+      ) {
+        return callback(null, true);
+      }
+
+      console.warn(`[CORS] Zablokowano żądanie z Origin: ${origin}`);
+      return callback(new Error(`CORS policy does not allow access from origin: ${origin}`));
+    },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
