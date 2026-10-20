@@ -22,13 +22,23 @@ export function indoorConditions(row) {
     1,
     Math.round(row.frequencyDays * Math.max(0.5, Math.min(1.5, factor))),
   );
-  const light = { low: "słabe", medium: "średnie", bright_indirect: "jasne rozproszone", direct_sun: "bezpośrednie słońce" };
+  const light = {
+    low: "słabe",
+    medium: "średnie",
+    bright_indirect: "jasne rozproszone",
+    direct_sun: "bezpośrednie słońce",
+  };
   const conditions = [
     temperature === null ? null : `temperatura ${temperature}°C`,
     humidity === null ? null : `wilgotność ${humidity}%`,
     light[row.lightLevel] ? `światło: ${light[row.lightLevel]}` : null,
-  ].filter(Boolean).join(", ");
-  return { days, reason: `Warunki mikroklimatu: ${conditions || "brak parametrów"}. Bazowy odstęp: ${row.frequencyDays} dni; po korekcie: ${days} dni. Termin liczony od ${row.lastCompletedAt ? "ostatniego podlewania" : "utworzenia harmonogramu"}. Zaległy wynik korekty ustawiany jest na dziś.` };
+  ]
+    .filter(Boolean)
+    .join(", ");
+  return {
+    days,
+    reason: `Warunki mikroklimatu: ${conditions || "brak parametrów"}. Bazowy odstęp: ${row.frequencyDays} dni; po korekcie: ${days} dni. Termin liczony od ${row.lastCompletedAt ? "ostatniego podlewania" : "utworzenia harmonogramu"}. Zaległy wynik korekty ustawiany jest na dziś.`,
+  };
 }
 
 export function indoorWateringDate(row, now = new Date()) {

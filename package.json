@@ -5,6 +5,7 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
+    "db:optimization-history": "node scripts/migrate-optimization-history.js",
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "db:push": "drizzle-kit push",

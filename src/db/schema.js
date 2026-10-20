@@ -7,6 +7,7 @@ import {
   datetime,
   decimal,
   boolean,
+  index,
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 
@@ -93,6 +94,20 @@ export const careHistory = mysqlTable("care_history", {
   completedAt: timestamp("completed_at").defaultNow().notNull(),
   notes: text("notes"),
 });
+
+export const optimizationHistory = mysqlTable("optimization_history", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  plantId: int("plant_id").references(() => plants.id, { onDelete: "set null" }),
+  scheduleId: int("schedule_id").references(() => schedules.id, { onDelete: "set null" }),
+  plantName: varchar("plant_name", { length: 255 }).notNull(),
+  microclimateName: varchar("microclimate_name", { length: 255 }).notNull(),
+  previousDate: datetime("previous_date").notNull(),
+  newDate: datetime("new_date").notNull(),
+  reason: text("reason").notNull(),
+  source: varchar("source", { length: 20 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [index("optimization_history_user_id_idx").on(table.userId, table.id)]);
 
 // RELATIONS DEFINITIONS
 

@@ -1,16 +1,17 @@
 import cron from "node-cron";
 import { eq, and } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { plants, microclimates, schedules, taskTypes } from "../db/schema.js";
-import { getWeatherData, adjustedWateringDate } from "./weatherService.js";
-import { indoorWateringDate, indoorConditions } from "./indoorPolicy.js";
+import { plants, microclimates, schedules, taskTypes, optimizationHistory } from "../db/schema.js";
+import { getWeatherData } from "./weatherService.js";
+import { optimizeWatering } from "./wateringOptimization.js";
 
 export { getWeatherData } from "./weatherService.js";
 
-export async function checkOutdoorPlantsAndAdjustSchedules(userId) {
-  const rows = await db
+export async function checkOutdoorPlantsAndAdjustSchedules(userId, database = db) {
+  const rows = await database
     .select({
       scheduleId: schedules.id,
+      userId: microclimates.userId,
       nextDueDate: schedules.nextDueDate,
       location: microclimates.location,
       plantId: plants.id,
@@ -51,21 +52,32 @@ export async function checkOutdoorPlantsAndAdjustSchedules(userId) {
           locations.set(location, getWeatherData(location));
         weather = await locations.get(location);
       }
-      const outcome = await db.transaction(async (tx) => {
+      const outcome = await database.transaction(async (tx) => {
         const [schedule] = await tx
           .select()
           .from(schedules)
           .where(eq(schedules.id, row.scheduleId))
           .for("update");
         if (!schedule?.active) return { changed: false };
-        const nextDueDate = outdoor
-          ? adjustedWateringDate(schedule.nextDueDate, weather)
-          : indoorWateringDate({ ...row, ...schedule });
+        const optimization = optimizeWatering({ ...row, ...schedule }, weather);
+        const nextDueDate = optimization.changed ? optimization.newDate : null;
         if (nextDueDate) {
           await tx
             .update(schedules)
             .set({ nextDueDate })
             .where(eq(schedules.id, row.scheduleId));
+          // Keep the audit entry and new date atomic: either both persist or neither does.
+          await tx.insert(optimizationHistory).values({
+            userId: row.userId,
+            plantId: row.plantId,
+            scheduleId: row.scheduleId,
+            plantName: row.plantName,
+            microclimateName: row.microclimateName,
+            previousDate: schedule.nextDueDate,
+            newDate: nextDueDate,
+            reason: optimization.reason,
+            source: userId ? "manual" : "automatic",
+          });
         }
         return { changed: !!nextDueDate, change: nextDueDate ? {
           scheduleId: row.scheduleId,
@@ -74,11 +86,7 @@ export async function checkOutdoorPlantsAndAdjustSchedules(userId) {
           microclimateName: row.microclimateName,
           previousDate: schedule.nextDueDate,
           newDate: nextDueDate,
-          reason: outdoor
-            ? weather.rainExpected
-              ? `Prognozowane opady: ${weather.precipitationMm} mm (próg 2 mm). Dzisiejsze podlewanie przesunięto na pojutrze.`
-              : `Prognozowana temperatura maksymalna: ${weather.maxTemperature}°C (próg 28°C), bez istotnych opadów. Jutrzejsze podlewanie przyspieszono na dziś.`
-            : indoorConditions({ ...row, ...schedule }).reason,
+          reason: optimization.reason,
         } : null };
       });
       if (outcome.changed) {
