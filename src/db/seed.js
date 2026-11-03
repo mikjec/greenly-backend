@@ -36,7 +36,7 @@ export async function seed() {
 }
 
 // Run if called directly
-if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, "/")}`) {
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/"))) {
   seed()
     .then(() => pool.end())
     .catch((err) => {
