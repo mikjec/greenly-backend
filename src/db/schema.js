@@ -109,10 +109,27 @@ export const optimizationHistory = mysqlTable("optimization_history", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [index("optimization_history_user_id_idx").on(table.userId, table.id)]);
 
+// 9. Push Subscriptions table
+export const pushSubscriptions = mysqlTable(
+  "push_subscriptions",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    userId: int("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    p256dh: varchar("p256dh", { length: 255 }).notNull(),
+    auth: varchar("auth", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [index("push_subscriptions_user_id_idx").on(table.userId)]
+);
+
 // RELATIONS DEFINITIONS
 
 export const usersRelations = relations(users, ({ many }) => ({
   microclimates: many(microclimates),
+  pushSubscriptions: many(pushSubscriptions),
 }));
 
 export const microclimatesRelations = relations(microclimates, ({ one, many }) => ({
@@ -164,5 +181,12 @@ export const careHistoryRelations = relations(careHistory, ({ one }) => ({
   taskType: one(taskTypes, {
     fields: [careHistory.taskTypeId],
     references: [taskTypes.id],
+  }),
+}));
+
+export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
+  user: one(users, {
+    fields: [pushSubscriptions.userId],
+    references: [users.id],
   }),
 }));

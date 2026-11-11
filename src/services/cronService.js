@@ -4,6 +4,7 @@ import { db } from "../db/index.js";
 import { plants, microclimates, schedules, taskTypes, optimizationHistory } from "../db/schema.js";
 import { getWeatherData } from "./weatherService.js";
 import { optimizeWatering } from "./wateringOptimization.js";
+import { checkDueCareAndSendNotifications } from "./notificationService.js";
 
 export { getWeatherData } from "./weatherService.js";
 
@@ -113,12 +114,17 @@ export function initCronJobs() {
     "0 8 * * *",
     async () => {
       try {
-        const result = await checkOutdoorPlantsAndAdjustSchedules();
-        console.log("[WEATHER CRON]", JSON.stringify(result));
+        console.log("[CRON 8:00] Rozpoczynanie porannego sprawdzania pogody i harmonogramów...");
+        const weatherResult = await checkOutdoorPlantsAndAdjustSchedules();
+        console.log("[WEATHER CRON]", JSON.stringify(weatherResult));
+
+        console.log("[CRON 8:00] Sprawdzanie i wysyłanie powiadomień Push o podlewaniu...");
+        const notificationResult = await checkDueCareAndSendNotifications();
+        console.log("[NOTIFICATION CRON]", JSON.stringify(notificationResult));
       } catch (error) {
         console.error(
-          "[WEATHER CRON] Nie udało się przetworzyć harmonogramów:",
-          error.message,
+          "[CRON] Błąd podczas wykonywania zadań cyklicznych:",
+          error.message
         );
       }
     },

@@ -9,12 +9,14 @@ import careRoutes from "./routes/careRoutes.js";
 import catalogRoutes from "./routes/catalogRoutes.js";
 import weatherRoutes from "./routes/weatherRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 import { uploadDirectory } from "./services/imageService.js";
 import { requireAuth } from "./middlewares/authMiddleware.js";
 import {
   initCronJobs,
   checkOutdoorPlantsAndAdjustSchedules,
 } from "./services/cronService.js";
+import { checkDueCareAndSendNotifications } from "./services/notificationService.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -91,6 +93,7 @@ app.use("/api/care", careRoutes);
 app.use("/api/catalog", catalogRoutes);
 app.use("/api/weather", weatherRoutes);
 app.use("/api/uploads", uploadRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Opcjonalny endpoint do ręcznego wywołania zadania cron (ułatwia testowanie i demonstrację)
 app.post("/api/cron/trigger-weather", requireAuth, async (req, res) => {
@@ -102,6 +105,31 @@ app.post("/api/cron/trigger-weather", requireAuth, async (req, res) => {
   } catch (err) {
     res.status(500).json({
       message: "Błąd podczas wykonywania zadania pogodowego",
+      error: err.message,
+    });
+  }
+});
+
+// Endpoint wyzwalający wysyłkę powiadomień Push (np. z cron-job.org / GitHub Actions lub manualnie)
+app.post("/api/cron/trigger-notifications", async (req, res) => {
+  try {
+    const cronSecret = process.env.CRON_SECRET;
+    const providedSecret = req.headers["x-cron-secret"] || req.query.secret;
+    const authHeader = req.headers.authorization;
+
+    // Jeśli skonfigurowano CRON_SECRET, wymagaj go w nagłówku/query lub autoryzacji tokenem
+    if (cronSecret && providedSecret !== cronSecret && !authHeader) {
+      return res.status(401).json({
+        message: "Brak uprawnień do uruchomienia zadania cron (niepoprawny secret lub brak autoryzacji)",
+      });
+    }
+
+    const result = await checkDueCareAndSendNotifications();
+    res.status(200).json(result);
+  } catch (err) {
+    console.error("Błąd podczas wyzwalania powiadomień przez cron:", err);
+    res.status(500).json({
+      message: "Błąd podczas wyzwalania powiadomień push",
       error: err.message,
     });
   }
