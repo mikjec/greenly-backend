@@ -1,6 +1,6 @@
 import { wateringSuggestion } from "./wateringSuggestion.js";
 import { createRequestCache } from "./requestCache.js";
-const BASE_URL = "https://perenual.com/api/v2/";
+const BASE_URL = process.env.PERENUAL_BASE_URL || "https://perenual.com/api/";
 const cached = createRequestCache();
 
 export function getCachedCatalog(path, params = {}) {
@@ -31,15 +31,32 @@ export async function fetchCatalog(path, params = {}) {
   let response;
   try {
     response = await fetch(url, { signal: AbortSignal.timeout(15000) });
-  } catch {
+  } catch (err) {
+    console.error(`[Perenual API] Błąd sieci podczas zapytania (${url.origin}${url.pathname}):`, err.message);
     throw Object.assign(
       new Error(
         "Nie można połączyć się z katalogiem Perenual. Spróbuj ponownie.",
       ),
-      { status: 502 },
+      { status: 502, cause: err },
     );
   }
   if (!response.ok) {
+    let errBody = null;
+    try {
+      errBody = await response.json();
+    } catch {
+      // Ignorujemy błędy parsowania przy statusach != 200
+    }
+    const perenualMsg = errBody?.message;
+    console.error(`[Perenual API] Błąd HTTP ${response.status}:`, perenualMsg || response.statusText);
+
+    if (perenualMsg && (perenualMsg.toLowerCase().includes("api key") || perenualMsg.toLowerCase().includes("key"))) {
+      throw Object.assign(
+        new Error(`Błąd Perenual API: ${perenualMsg}`),
+        { status: 502 },
+      );
+    }
+
     const messages = {
       404: "Nie znaleziono gatunku w katalogu Perenual.",
       429: "Osiągnięto limit zapytań Perenual. Spróbuj ponownie później.",
@@ -49,7 +66,7 @@ export async function fetchCatalog(path, params = {}) {
     throw Object.assign(
       new Error(
         messages[response.status] ||
-          "Katalog Perenual jest chwilowo niedostępny.",
+          (perenualMsg ? `Błąd Perenual: ${perenualMsg}` : "Katalog Perenual jest chwilowo niedostępny."),
       ),
       {
         status: [404, 429].includes(response.status) ? response.status : 502,
@@ -58,10 +75,11 @@ export async function fetchCatalog(path, params = {}) {
   }
   try {
     return await response.json();
-  } catch {
+  } catch (err) {
+    console.error("[Perenual API] Błąd parsowania JSON odpowiedzi:", err.message);
     throw Object.assign(
       new Error("Nieprawidłowa odpowiedź katalogu Perenual."),
-      { status: 502 },
+      { status: 502, cause: err },
     );
   }
 }
