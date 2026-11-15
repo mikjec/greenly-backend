@@ -29,10 +29,40 @@ export function getVapidPublicKey() {
   return VAPID_PUBLIC_KEY;
 }
 
+let ensureTablePromise = null;
+
+/**
+ * Zapewnia istnienie tabeli push_subscriptions w bazie (przydatne m.in. przy świeżym wdrożeniu na Renderze).
+ */
+async function ensurePushSubscriptionsTable() {
+  if (!ensureTablePromise) {
+    ensureTablePromise = db
+      .execute(`
+        CREATE TABLE IF NOT EXISTS \`push_subscriptions\` (
+          \`id\` int NOT NULL AUTO_INCREMENT,
+          \`user_id\` int NOT NULL,
+          \`endpoint\` text NOT NULL,
+          \`p256dh\` varchar(255) NOT NULL,
+          \`auth\` varchar(255) NOT NULL,
+          \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (\`id\`),
+          KEY \`push_subscriptions_user_id_idx\` (\`user_id\`),
+          CONSTRAINT \`push_subscriptions_user_id_users_id_fk\` FOREIGN KEY (\`user_id\`) REFERENCES \`users\` (\`id\`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+      `)
+      .catch((err) => {
+        ensureTablePromise = null;
+        throw err;
+      });
+  }
+  return ensureTablePromise;
+}
+
 /**
  * Zapisuje lub aktualizuje subskrypcję Push dla danego użytkownika
  */
 export async function saveSubscription(userId, subscription) {
+  await ensurePushSubscriptionsTable();
   if (!subscription || !subscription.endpoint || !subscription.keys) {
     throw new Error("Nieprawidłowy format obiektu subskrypcji");
   }
@@ -74,6 +104,7 @@ export async function saveSubscription(userId, subscription) {
  */
 export async function removeSubscription(endpoint) {
   if (!endpoint) return;
+  await ensurePushSubscriptionsTable();
   await db
     .delete(pushSubscriptions)
     .where(eq(pushSubscriptions.endpoint, endpoint));
@@ -121,6 +152,7 @@ export async function sendNotificationToSubscription(subRow, payload) {
  * Wysyła powiadomienie do wszystkich zarejestrowanych urządzeń danego użytkownika
  */
 export async function sendNotificationToUser(userId, payload) {
+  await ensurePushSubscriptionsTable();
   const subs = await db
     .select()
     .from(pushSubscriptions)
