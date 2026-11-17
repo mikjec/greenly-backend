@@ -5,9 +5,65 @@ import {
   saveSubscription,
   removeSubscription,
   sendNotificationToUser,
+  createInAppNotification,
+  getUserNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
 } from "../services/notificationService.js";
 
 const router = Router();
+
+// Pobranie listy powiadomień użytkownika
+router.get("/", requireAuth, async (req, res) => {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 30;
+    const data = await getUserNotifications(req.user.id, { limit });
+    res.json(data);
+  } catch (err) {
+    console.error("Błąd pobierania powiadomień:", err);
+    res.status(500).json({
+      message: "Nie udało się pobrać powiadomień",
+      error: err.message,
+    });
+  }
+});
+
+// Oznaczenie wszystkich powiadomień jako przeczytane
+router.patch("/read-all", requireAuth, async (req, res) => {
+  try {
+    const result = await markAllNotificationsAsRead(req.user.id);
+    res.json(result);
+  } catch (err) {
+    console.error("Błąd oznaczania powiadomień jako przeczytane:", err);
+    res.status(500).json({
+      message: "Nie udało się oznaczyć powiadomień jako przeczytane",
+      error: err.message,
+    });
+  }
+});
+
+// Oznaczenie pojedynczego powiadomienia jako przeczytane
+router.patch("/:id/read", requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: "Nieprawidłowe ID powiadomienia" });
+    }
+
+    const updated = await markNotificationAsRead(req.user.id, id);
+    if (!updated) {
+      return res.status(404).json({ message: "Nie znaleziono powiadomienia" });
+    }
+
+    res.json({ notification: updated });
+  } catch (err) {
+    console.error("Błąd oznaczania powiadomienia jako przeczytane:", err);
+    res.status(500).json({
+      message: "Nie udało się oznaczyć powiadomienia",
+      error: err.message,
+    });
+  }
+});
 
 // Pobranie publicznego klucza VAPID (dostępne publicznie dla zarejestrowanych klientów)
 router.get("/vapid-public-key", (req, res) => {
@@ -67,6 +123,16 @@ router.post("/test", requireAuth, async (req, res) => {
       tag: "greenly-test",
       data: { url: "/profile" },
     };
+
+    await createInAppNotification({
+      userId: req.user.id,
+      title: payload.title,
+      body: payload.body,
+      type: "test",
+      url: "/profile",
+    }).catch((err) => {
+      console.error("[IN-APP] Błąd zapisu powiadomienia testowego:", err.message);
+    });
 
     const result = await sendNotificationToUser(req.user.id, payload);
 

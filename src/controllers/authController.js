@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { eq, ne, and } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
+import { sendWelcomeEmail } from "../services/emailService.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretgreenlyjwtkey_2026";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
@@ -58,6 +59,10 @@ export const register = async (req, res) => {
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
+
+    sendWelcomeEmail(emailTrimmed).catch((mailError) => {
+      console.error("[MAIL] Nie udało się wysłać maila powitalnego:", mailError.message);
+    });
 
     return res.status(201).json({
       message: "Użytkownik zarejestrowany pomyślnie",

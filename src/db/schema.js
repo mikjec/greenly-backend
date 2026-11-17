@@ -125,11 +125,30 @@ export const pushSubscriptions = mysqlTable(
   (table) => [index("push_subscriptions_user_id_idx").on(table.userId)]
 );
 
+// 10. In-App Notifications table
+export const notifications = mysqlTable(
+  "notifications",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    userId: int("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 255 }).notNull(),
+    body: text("body").notNull(),
+    type: varchar("type", { length: 50 }).default("info").notNull(),
+    url: varchar("url", { length: 500 }).default("/schedules").notNull(),
+    isRead: boolean("is_read").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [index("notifications_user_id_idx").on(table.userId, table.id)]
+);
+
 // RELATIONS DEFINITIONS
 
 export const usersRelations = relations(users, ({ many }) => ({
   microclimates: many(microclimates),
   pushSubscriptions: many(pushSubscriptions),
+  notifications: many(notifications),
 }));
 
 export const microclimatesRelations = relations(microclimates, ({ one, many }) => ({
@@ -187,6 +206,13 @@ export const careHistoryRelations = relations(careHistory, ({ one }) => ({
 export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
   user: one(users, {
     fields: [pushSubscriptions.userId],
+    references: [users.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
     references: [users.id],
   }),
 }));

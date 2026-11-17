@@ -1,8 +1,9 @@
 import * as webpush from "web-push";
-import { eq, and, lte } from "drizzle-orm";
+import { eq, and, lte, desc, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   pushSubscriptions,
+  notifications,
   users,
   schedules,
   plants,
@@ -30,6 +31,136 @@ export function getVapidPublicKey() {
 }
 
 let ensureTablePromise = null;
+let ensureNotificationsTablePromise = null;
+
+/**
+ * Zapewnia istnienie tabeli notifications w bazie.
+ */
+async function ensureNotificationsTable(database = db) {
+  if (database !== db) return;
+  if (!ensureNotificationsTablePromise) {
+    ensureNotificationsTablePromise = database
+      .execute(`
+        CREATE TABLE IF NOT EXISTS \`notifications\` (
+          \`id\` int NOT NULL AUTO_INCREMENT,
+          \`user_id\` int NOT NULL,
+          \`title\` varchar(255) NOT NULL,
+          \`body\` text NOT NULL,
+          \`type\` varchar(50) NOT NULL DEFAULT 'info',
+          \`url\` varchar(500) NOT NULL DEFAULT '/schedules',
+          \`is_read\` tinyint(1) NOT NULL DEFAULT '0',
+          \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (\`id\`),
+          KEY \`notifications_user_id_idx\` (\`user_id\`, \`id\`),
+          CONSTRAINT \`notifications_user_id_users_id_fk\` FOREIGN KEY (\`user_id\`) REFERENCES \`users\` (\`id\`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+      `)
+      .catch((err) => {
+        ensureNotificationsTablePromise = null;
+        throw err;
+      });
+  }
+  return ensureNotificationsTablePromise;
+}
+
+/**
+ * Zapisuje powiadomienie w aplikacji dla użytkownika.
+ */
+export async function createInAppNotification(
+  { userId, title, body, type = "info", url = "/schedules" },
+  database = db
+) {
+  await ensureNotificationsTable(database);
+  const [inserted] = await database.insert(notifications).values({
+    userId,
+    title: String(title).slice(0, 255),
+    body: String(body),
+    type: String(type).slice(0, 50),
+    url: String(url || "/schedules").slice(0, 500),
+    isRead: false,
+  });
+  return inserted?.insertId ?? null;
+}
+
+/**
+ * Pobiera listę powiadomień użytkownika oraz liczbę nieprzeczytanych.
+ */
+export async function getUserNotifications(
+  userId,
+  { limit = 30 } = {},
+  database = db
+) {
+  await ensureNotificationsTable(database);
+  const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 100);
+
+  const items = await database
+    .select()
+    .from(notifications)
+    .where(eq(notifications.userId, userId))
+    .orderBy(desc(notifications.id))
+    .limit(safeLimit);
+
+  const [unreadRow] = await database
+    .select({ count: sql`count(*)` })
+    .from(notifications)
+    .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+
+  return {
+    notifications: items,
+    unreadCount: Number(unreadRow?.count ?? 0),
+  };
+}
+
+/**
+ * Oznacza pojedyncze powiadomienie użytkownika jako przeczytane.
+ */
+export async function markNotificationAsRead(
+  userId,
+  notificationId,
+  database = db
+) {
+  await ensureNotificationsTable(database);
+  const [existing] = await database
+    .select()
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.id, notificationId),
+        eq(notifications.userId, userId)
+      )
+    )
+    .limit(1);
+
+  if (!existing) return null;
+
+  if (!existing.isRead) {
+    await database
+      .update(notifications)
+      .set({ isRead: true })
+      .where(
+        and(
+          eq(notifications.id, notificationId),
+          eq(notifications.userId, userId)
+        )
+      );
+  }
+
+  return { ...existing, isRead: true };
+}
+
+/**
+ * Oznacza wszystkie powiadomienia użytkownika jako przeczytane.
+ */
+export async function markAllNotificationsAsRead(userId, database = db) {
+  await ensureNotificationsTable(database);
+  await database
+    .update(notifications)
+    .set({ isRead: true })
+    .where(
+      and(eq(notifications.userId, userId), eq(notifications.isRead, false))
+    );
+  return { updated: true };
+}
 
 /**
  * Zapewnia istnienie tabeli push_subscriptions w bazie (przydatne m.in. przy świeżym wdrożeniu na Renderze).
@@ -171,11 +302,55 @@ export async function sendNotificationToUser(userId, payload) {
   return { sent, total: subs.length };
 }
 
+export function buildCareNotificationPayload(userTasks, mode = "morning") {
+  const taskCount = userTasks.length;
+  const samplePlants = userTasks
+    .slice(0, 3)
+    .map((t) => `${t.plantName} (${t.taskLabel.toLowerCase()})`)
+    .join(", ");
+  const andMore = taskCount > 3 ? ` i ${taskCount - 3} więcej` : "";
+  const taskWord =
+    taskCount === 1 ? "zadanie" : taskCount < 5 ? "zadania" : "zadań";
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (mode === "reminder") {
+    const verb = taskCount === 1 ? "czeka" : taskCount < 5 ? "czekają" : "czeka";
+    return {
+      title: "🌙 Greenly: Przypomnienie o pielęgnacji",
+      body: `Nadal ${verb} na Ciebie ${taskCount} ${taskWord}: ${samplePlants}${andMore}. Pamiętaj o roślinach przed końcem dnia!`,
+      icon: "/icon-192.png",
+      badge: "/favicon.svg",
+      tag: `greenly-care-reminder-${today}`,
+      data: {
+        url: "/schedules",
+        taskCount,
+        mode: "reminder",
+      },
+    };
+  }
+
+  return {
+    title: "🌱 Greenly: Czas na pielęgnację!",
+    body: `Dzisiaj czeka na Ciebie ${taskCount} ${taskWord}: ${samplePlants}${andMore}.`,
+    icon: "/icon-192.png",
+    badge: "/favicon.svg",
+    tag: `greenly-care-${today}`,
+    data: {
+      url: "/schedules",
+      taskCount,
+      mode: "morning",
+    },
+  };
+}
+
 /**
  * Sprawdza zadania pielęgnacyjne wypadające na dzisiaj i wysyła powiadomienia Push
  * Może być wywoływane przez CRON lub manualny endpoint
  */
-export async function checkDueCareAndSendNotifications(targetUserId = null) {
+export async function checkDueCareAndSendNotifications(
+  targetUserId = null,
+  { mode = "morning" } = {}
+) {
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
 
@@ -229,25 +404,17 @@ export async function checkDueCareAndSendNotifications(targetUserId = null) {
 
   for (const [userId, userTasks] of tasksByUser.entries()) {
     const taskCount = userTasks.length;
-    const samplePlants = userTasks
-      .slice(0, 3)
-      .map((t) => `${t.plantName} (${t.taskLabel.toLowerCase()})`)
-      .join(", ");
-    const andMore = taskCount > 3 ? ` i ${taskCount - 3} więcej` : "";
+    const notificationPayload = buildCareNotificationPayload(userTasks, mode);
 
-    const notificationPayload = {
-      title: "🌱 Greenly: Czas na pielęgnację!",
-      body: `Dzisiaj czeka na Ciebie ${taskCount} ${
-        taskCount === 1 ? "zadanie" : taskCount < 5 ? "zadania" : "zadań"
-      }: ${samplePlants}${andMore}.`,
-      icon: "/icon-192.png",
-      badge: "/favicon.svg",
-      tag: `greenly-care-${new Date().toISOString().slice(0, 10)}`,
-      data: {
-        url: "/schedules",
-        taskCount,
-      },
-    };
+    await createInAppNotification({
+      userId,
+      title: notificationPayload.title,
+      body: notificationPayload.body,
+      type: mode === "reminder" ? "reminder" : "care",
+      url: "/schedules",
+    }).catch((err) => {
+      console.error("[IN-APP] Błąd zapisu powiadomienia:", err.message);
+    });
 
     const { sent, total } = await sendNotificationToUser(
       userId,
@@ -276,6 +443,10 @@ export default {
   getVapidPublicKey,
   saveSubscription,
   removeSubscription,
+  createInAppNotification,
+  getUserNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
   sendNotificationToUser,
   sendNotificationToSubscription,
   checkDueCareAndSendNotifications,

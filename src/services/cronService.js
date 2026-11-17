@@ -4,7 +4,10 @@ import { db } from "../db/index.js";
 import { plants, microclimates, schedules, taskTypes, optimizationHistory } from "../db/schema.js";
 import { getWeatherData } from "./weatherService.js";
 import { optimizeWatering } from "./wateringOptimization.js";
-import { checkDueCareAndSendNotifications } from "./notificationService.js";
+import {
+  checkDueCareAndSendNotifications,
+  createInAppNotification,
+} from "./notificationService.js";
 
 export { getWeatherData } from "./weatherService.js";
 
@@ -92,7 +95,7 @@ export async function checkOutdoorPlantsAndAdjustSchedules(userId, database = db
       });
       if (outcome.changed) {
         result.updated += 1;
-        result.changes.push(outcome.change);
+        result.changes.push({ ...outcome.change, userId: row.userId });
       }
     } catch (error) {
       result.skipped += 1;
@@ -106,11 +109,34 @@ export async function checkOutdoorPlantsAndAdjustSchedules(userId, database = db
       });
     }
   }
+
+  if (database === db && result.changes.length > 0) {
+    const changesByUser = new Map();
+    for (const change of result.changes) {
+      if (!changesByUser.has(change.userId)) changesByUser.set(change.userId, []);
+      changesByUser.get(change.userId).push(change);
+    }
+    for (const [targetUid, userChanges] of changesByUser.entries()) {
+      const count = userChanges.length;
+      const sample = userChanges.slice(0, 2).map((c) => c.plantName).join(", ");
+      const more = count > 2 ? ` i ${count - 2} więcej` : "";
+      await createInAppNotification({
+        userId: targetUid,
+        title: "🌦️ Korekta harmonogramu podlewania",
+        body: `Zaktualizowano ${count} ${count === 1 ? "harmonogram" : count < 5 ? "harmonogramy" : "harmonogramów"} (${sample}${more}) na podstawie warunków pogodowych.`,
+        type: "weather",
+        url: "/schedules",
+      }).catch((err) => {
+        console.error("[IN-APP] Błąd zapisu powiadomienia pogodowego:", err.message);
+      });
+    }
+  }
+
   return result;
 }
 
 export function initCronJobs() {
-  return cron.schedule(
+  const morningJob = cron.schedule(
     "0 8 * * *",
     async () => {
       try {
@@ -119,7 +145,7 @@ export function initCronJobs() {
         console.log("[WEATHER CRON]", JSON.stringify(weatherResult));
 
         console.log("[CRON 8:00] Sprawdzanie i wysyłanie powiadomień Push o podlewaniu...");
-        const notificationResult = await checkDueCareAndSendNotifications();
+        const notificationResult = await checkDueCareAndSendNotifications(null, { mode: "morning" });
         console.log("[NOTIFICATION CRON]", JSON.stringify(notificationResult));
       } catch (error) {
         console.error(
@@ -130,6 +156,25 @@ export function initCronJobs() {
     },
     { timezone: "Europe/Warsaw", noOverlap: true },
   );
+
+  const reminderJob = cron.schedule(
+    "0 18 * * *",
+    async () => {
+      try {
+        console.log("[CRON 18:00] Sprawdzanie niewykonanych zadań i wysyłanie przypomnienia...");
+        const reminderResult = await checkDueCareAndSendNotifications(null, { mode: "reminder" });
+        console.log("[REMINDER CRON]", JSON.stringify(reminderResult));
+      } catch (error) {
+        console.error(
+          "[CRON 18:00] Błąd podczas wysyłania przypomnienia:",
+          error.message
+        );
+      }
+    },
+    { timezone: "Europe/Warsaw", noOverlap: true },
+  );
+
+  return { morningJob, reminderJob };
 }
 
 export default {

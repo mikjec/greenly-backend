@@ -151,7 +151,7 @@ export async function listCatalog(req, res) {
     page,
     order,
     ...(watering ? { watering } : {}),
-    ...(q.trim() ? { q: q.trim() } : {}),
+    ...(q.trim() ? { q: q.trim().toLowerCase() } : {}),
   });
   if (!Array.isArray(result?.data)) {
     return res

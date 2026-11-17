@@ -124,7 +124,11 @@ app.post("/api/cron/trigger-notifications", async (req, res) => {
       });
     }
 
-    const result = await checkDueCareAndSendNotifications();
+    const mode =
+      req.query.type === "reminder" || req.body?.type === "reminder"
+        ? "reminder"
+        : "morning";
+    const result = await checkDueCareAndSendNotifications(null, { mode });
     res.status(200).json(result);
   } catch (err) {
     console.error("Błąd podczas wyzwalania powiadomień przez cron:", err);
