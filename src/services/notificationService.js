@@ -11,19 +11,19 @@ import {
   taskTypes,
 } from "../db/schema.js";
 
-const VAPID_PUBLIC_KEY =
-  process.env.VAPID_PUBLIC_KEY ||
-  "BPesvUGnmGPWNLD4SZarLzbBgRS7maZUkoIYumkiOGMRPJEUZEvYGRKkA94PkNM-RSsgClv3v-eZftw9OSE4gUo";
-const VAPID_PRIVATE_KEY =
-  process.env.VAPID_PRIVATE_KEY ||
-  "JACjuzlWbV3iCLnNLiAILqAMNYwvvAVTE1WnmtsiqPs";
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY?.trim() || "";
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY?.trim() || "";
 const VAPID_SUBJECT =
-  process.env.VAPID_SUBJECT || "mailto:kontakt@greenly.local";
+  process.env.VAPID_SUBJECT?.trim() || "mailto:kontakt@greenly-app.pl";
 
-try {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-} catch (err) {
-  console.warn("⚠️ Błąd konfiguracji VAPID:", err.message);
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  } catch (err) {
+    console.warn("⚠️ Błąd konfiguracji VAPID:", err.message);
+  }
+} else {
+  console.warn("⚠️ Brak kluczy VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY — Web Push wyłączony.");
 }
 
 export function getVapidPublicKey() {
