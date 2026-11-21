@@ -1,5 +1,6 @@
 import cron from "node-cron";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
+import { equivalentTaskKeys } from "./taskKeys.js";
 import { db } from "../db/index.js";
 import { plants, microclimates, schedules, taskTypes, optimizationHistory } from "../db/schema.js";
 import { getWeatherData } from "./weatherService.js";
@@ -34,7 +35,7 @@ export async function checkOutdoorPlantsAndAdjustSchedules(userId, database = db
       and(
         eq(plants.active, true),
         eq(schedules.active, true),
-        eq(taskTypes.key, "water"),
+        inArray(taskTypes.key, equivalentTaskKeys("water")),
         ...(userId ? [eq(microclimates.userId, userId)] : []),
       ),
     );

@@ -1,5 +1,6 @@
 import { eq, and, desc, isNull } from "drizzle-orm";
 import { db } from "../db/index.js";
+import { initialWateringSchedule } from "../services/initialWateringSchedule.js";
 import {
   plants,
   microclimates,
@@ -200,6 +201,7 @@ export const createPlant = async (req, res) => {
       locationDescription,
       imageUrl,
       frequencyDays,
+      lastWateredDate,
     } = req.body;
 
     if (!microclimateId || typeof nickname !== "string" || !nickname.trim() || nickname.length > 255) {
@@ -214,6 +216,13 @@ export const createPlant = async (req, res) => {
     }
     if (isNaN(microclimateIdNum)) {
       return res.status(400).json({ message: "Nieprawidłowe ID mikroklimatu" });
+    }
+
+    let initialSchedule;
+    try {
+      initialSchedule = initialWateringSchedule(frequencyDays, lastWateredDate);
+    } catch (error) {
+      return res.status(400).json({ message: error.message });
     }
 
     // Sprawdź czy wybrany mikroklimat należy do zalogowanego użytkownika
@@ -263,14 +272,12 @@ export const createPlant = async (req, res) => {
 
     if (waterTaskTypes.length > 0) {
       const days = Number(frequencyDays) || 7;
-      const nextDueDate = new Date();
-      nextDueDate.setDate(nextDueDate.getDate() + days);
 
       await db.insert(schedules).values({
         plantId: newPlantId,
         taskTypeId: waterTaskTypes[0].id,
         frequencyDays: days,
-        nextDueDate,
+        ...initialSchedule,
         active: true,
       });
     }

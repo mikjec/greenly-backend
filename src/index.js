@@ -12,6 +12,7 @@ import uploadRoutes from "./routes/uploadRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import { uploadDirectory } from "./services/imageService.js";
 import { requireAuth } from "./middlewares/authMiddleware.js";
+import { authorizeNotificationCron } from "./middlewares/cronAuthorization.js";
 import {
   initCronJobs,
   checkOutdoorPlantsAndAdjustSchedules,
@@ -111,24 +112,13 @@ app.post("/api/cron/trigger-weather", requireAuth, async (req, res) => {
 });
 
 // Endpoint wyzwalający wysyłkę powiadomień Push (np. z cron-job.org / GitHub Actions lub manualnie)
-app.post("/api/cron/trigger-notifications", async (req, res) => {
+app.post("/api/cron/trigger-notifications", authorizeNotificationCron(requireAuth), async (req, res) => {
   try {
-    const cronSecret = process.env.CRON_SECRET;
-    const providedSecret = req.headers["x-cron-secret"] || req.query.secret;
-    const authHeader = req.headers.authorization;
-
-    // Jeśli skonfigurowano CRON_SECRET, wymagaj go w nagłówku/query lub autoryzacji tokenem
-    if (cronSecret && providedSecret !== cronSecret && !authHeader) {
-      return res.status(401).json({
-        message: "Brak uprawnień do uruchomienia zadania cron (niepoprawny secret lub brak autoryzacji)",
-      });
-    }
-
     const mode =
       req.query.type === "reminder" || req.body?.type === "reminder"
         ? "reminder"
         : "morning";
-    const result = await checkDueCareAndSendNotifications(null, { mode });
+    const result = await checkDueCareAndSendNotifications(req.cronUserId, { mode });
     res.status(200).json(result);
   } catch (err) {
     console.error("Błąd podczas wyzwalania powiadomień przez cron:", err);

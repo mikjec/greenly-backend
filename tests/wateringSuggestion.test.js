@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizePlant } from "../src/services/catalogService.js";
 import { wateringSuggestion } from "../src/services/wateringSuggestion.js";
-import { applyCatalogPlant } from "../../greenly-frontend/src/utils/plantDraft.js";
+import { applyCatalogPlant } from "../../frontend/src/utils/plantDraft.js";
 
 test("API day ranges take precedence over approximate category defaults", () => {
   const plant = { watering: "Frequent", watering_general_benchmark: { value: "5-7", unit: "days" } };
