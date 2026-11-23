@@ -21,6 +21,18 @@ CREATE TABLE `microclimates` (
 	CONSTRAINT `microclimates_id` PRIMARY KEY(`id`)
 );
 
+CREATE TABLE `notifications` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`user_id` int NOT NULL,
+	`title` varchar(255) NOT NULL,
+	`body` text NOT NULL,
+	`type` varchar(50) NOT NULL DEFAULT 'info',
+	`url` varchar(500) NOT NULL DEFAULT '/schedules',
+	`is_read` boolean NOT NULL DEFAULT false,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `notifications_id` PRIMARY KEY(`id`)
+);
+
 CREATE TABLE `optimization_history` (
 	`id` int AUTO_INCREMENT NOT NULL,
 	`user_id` int NOT NULL,
@@ -98,6 +110,7 @@ CREATE TABLE `users` (
 ALTER TABLE `care_history` ADD CONSTRAINT `care_history_plant_id_plants_id_fk` FOREIGN KEY (`plant_id`) REFERENCES `plants`(`id`) ON DELETE cascade ON UPDATE no action;
 ALTER TABLE `care_history` ADD CONSTRAINT `care_history_task_type_id_task_types_id_fk` FOREIGN KEY (`task_type_id`) REFERENCES `task_types`(`id`) ON DELETE cascade ON UPDATE no action;
 ALTER TABLE `microclimates` ADD CONSTRAINT `microclimates_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE cascade ON UPDATE no action;
+ALTER TABLE `notifications` ADD CONSTRAINT `notifications_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE cascade ON UPDATE no action;
 ALTER TABLE `optimization_history` ADD CONSTRAINT `optimization_history_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE cascade ON UPDATE no action;
 ALTER TABLE `optimization_history` ADD CONSTRAINT `optimization_history_plant_id_plants_id_fk` FOREIGN KEY (`plant_id`) REFERENCES `plants`(`id`) ON DELETE set null ON UPDATE no action;
 ALTER TABLE `optimization_history` ADD CONSTRAINT `optimization_history_schedule_id_schedules_id_fk` FOREIGN KEY (`schedule_id`) REFERENCES `schedules`(`id`) ON DELETE set null ON UPDATE no action;
@@ -106,5 +119,6 @@ ALTER TABLE `plants` ADD CONSTRAINT `plants_microclimate_id_microclimates_id_fk`
 ALTER TABLE `push_subscriptions` ADD CONSTRAINT `push_subscriptions_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE cascade ON UPDATE no action;
 ALTER TABLE `schedules` ADD CONSTRAINT `schedules_plant_id_plants_id_fk` FOREIGN KEY (`plant_id`) REFERENCES `plants`(`id`) ON DELETE cascade ON UPDATE no action;
 ALTER TABLE `schedules` ADD CONSTRAINT `schedules_task_type_id_task_types_id_fk` FOREIGN KEY (`task_type_id`) REFERENCES `task_types`(`id`) ON DELETE cascade ON UPDATE no action;
+CREATE INDEX `notifications_user_id_idx` ON `notifications` (`user_id`,`id`);
 CREATE INDEX `optimization_history_user_id_idx` ON `optimization_history` (`user_id`,`id`);
 CREATE INDEX `push_subscriptions_user_id_idx` ON `push_subscriptions` (`user_id`);
